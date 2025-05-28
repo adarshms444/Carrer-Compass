@@ -1,6 +1,7 @@
-#----------------Main code----------------
+#----------------code----------------
 # Main code for the career recommender app using Streamlit, Pandas, SpaCy, and Scikit-learn
 
+# nlp.py
 
 import streamlit as st
 import pandas as pd
@@ -8,8 +9,9 @@ import spacy
 import re
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import spacy.cli
 
-# Load SpaCy model
+# Download and load SpaCy model
 nlp = spacy.load("en_core_web_sm")
 
 # Load datasets
@@ -37,7 +39,7 @@ career_data['Text'] = (
 vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_df=0.9, min_df=2)
 career_vectors = vectorizer.fit_transform(career_data['Text'])
 
-# Extract keywords using spaCy
+# Keyword extraction
 def extract_keywords(text):
     doc = nlp(text.lower())
     keywords = set()
@@ -48,7 +50,7 @@ def extract_keywords(text):
             keywords.add(ent.text.strip())
     return " ".join(keywords)
 
-# Recommend roles based on similarity
+# Role recommendation
 def recommend_roles(user_input, threshold=0.35):
     cleaned_input = clean_text(user_input)
     keyword_input = extract_keywords(cleaned_input)
@@ -69,7 +71,7 @@ def recommend_roles(user_input, threshold=0.35):
             break
     return unique_roles, top_scores
 
-# Suggest alternative roles
+# Role suggestions
 def suggest_alternatives(main_roles):
     suggestions = []
     for role in main_roles:
@@ -170,54 +172,55 @@ role_tips = {
     "Event Manager": "Master planning, budgeting, and vendor coordination. Learn project management tools and public relations. Build negotiation and crisis management skills."
 }
 
+# ---------------- Streamlit App ----------------
 
-# --- Streamlit App ---
 st.title("🎓 CareerCompass: Career Path Recommender")
 
 name = st.text_input("Enter your name (optional):")
 resume_input = st.text_area("Paste your resume or describe your interests, skills, or background:")
-uploaded_file = st.file_uploader("Or upload your resume as a .txt file")
 
-user_text = ""
+uploaded_file = st.file_uploader("Or upload a .txt or .pdf file", type=["txt", "pdf"])
 
 if uploaded_file is not None:
     try:
-        user_text = uploaded_file.read().decode("utf-8")
-    except UnicodeDecodeError:
-        uploaded_file.seek(0)
-        try:
-            user_text = uploaded_file.read().decode("latin1")
-        except Exception as e:
-            st.error(f"Failed to decode the file. Error: {e}")
-            user_text = ""
-elif resume_input:
-    user_text = resume_input
+        if uploaded_file.name.endswith(".txt"):
+            file_text = uploaded_file.read().decode("utf-8")
+        elif uploaded_file.name.endswith(".pdf"):
+            import PyPDF2
+            reader = PyPDF2.PdfReader(uploaded_file)
+            file_text = " ".join([page.extract_text() for page in reader.pages if page.extract_text()])
+        resume_input = file_text
+        st.success("Resume content loaded successfully.")
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
 
-if user_text and st.button("Get Career Recommendations"):
-    st.markdown("---")
-    st.subheader("🔍 Recommendations")
 
-    recs, sims = recommend_roles(user_text)
-    greeting = f"Hi {name}," if name else "Hi friend,"
-
-    if not recs:
-        st.write(f"{greeting} we couldn't find a strong match. Please try adding more details.")
+if st.button("🔍 Recommend Careers"):
+    if not resume_input.strip():
+        st.warning("Please paste your resume or upload a file.")
     else:
-        st.write(f"{greeting} based on your profile, we recommend:")
-        for role, score in zip(recs, sims):
-            st.write(f"- **{role}** (similarity score: {score:.2f})")
+        with st.spinner("Analyzing your input and recommending roles..."):
+            roles, scores = recommend_roles(resume_input)
+            alternatives = suggest_alternatives(roles)
+            
+            greeting = f"Hi {name}" if name.strip() else "Hello"
 
-        alt_suggestions = suggest_alternatives(recs)
-        if alt_suggestions:
-            st.markdown("---")
-            st.subheader("💡 You might also consider:")
-            for alt in alt_suggestions:
-                st.write(f"- {alt}")
+            if not roles:
+                st.write(f"{greeting}, we couldn't find a strong match. Please try adding more details.")
+            else:
+                st.write(f"{greeting}, based on your profile, we recommend:")
+                for role, score in zip(roles, scores):
+                    st.write(f"- **{role}** (similarity score: {score:.2f})")
+                    if role in role_tips:
+                        st.caption(f"💡 Tip: {role_tips[role]}")
 
-        st.markdown("---")
-        st.subheader("📌 Tips for Recommended Roles")
-        for role in recs:
-            tip = role_tips.get(role, "Explore this career path further by connecting with professionals and doing internships.")
-            st.markdown(f"**{role}**: {tip}")
-else:
-    st.info("Please paste your resume or upload a .txt file to get started.")
+                if alternatives:
+                    st.markdown("---")
+                    st.subheader("💡 You might also consider:")
+                    for alt in alternatives:
+                        st.write(f"- {alt}")
+
+
+
+st.markdown("---")
+st.caption("📌 CareerCompass — NLP-Powered Personalized Career Guidance System")
