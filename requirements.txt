@@ -3,4 +3,3 @@ pandas
 spacy
 scikit-learn
 numpy
-en-core-web-sm
