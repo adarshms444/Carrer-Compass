@@ -210,7 +210,7 @@ if st.button("🔍 Recommend Careers"):
             else:
                 st.write(f"{greeting}, based on your profile, we recommend:")
                 for role, score in zip(roles, scores):
-                    st.write(f"- **{role}** (similarity score: {score:.2f})")
+                    st.write(f"- **{role}**")
                     if role in role_tips:
                         st.caption(f"💡 Tip: {role_tips[role]}")
 
